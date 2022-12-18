@@ -124,9 +124,10 @@ func pcapStart() {
 	var ip6 layers.IPv6
 	var ip6extensions layers.IPv6ExtensionSkipper
 	var tcp layers.TCP
+	var tls layers.TLS
 	var payload gopacket.Payload
 	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet,
-		&eth, &dot1q, &ip4, &ip6, &ip6extensions, &tcp, &payload)
+		&eth, &dot1q, &ip4, &ip6, &ip6extensions, &tcp, &tls, &payload)
 	decoded := make([]gopacket.LayerType, 0, 4)
 
 	nextFlush := time.Now().Add(flushDuration / 2)
