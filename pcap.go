@@ -9,7 +9,6 @@ import (
 	"github.com/google/gopacket/examples/util"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	"github.com/google/gopacket/tcpassembly"
 )
 
 var iface = flag.String("i", "eth0", "Interface to get packets from")
@@ -23,7 +22,7 @@ is infinite.`)
 var bufferedTotal = flag.Int("total_max_buffer", 0, `
 Max packets to buffer total before skipping over gaps in connections and
 continuing to stream connection data.  If zero or less, this is infinite`)
-var flushAfter = flag.String("flush_after", "2m", `
+var flushAfter = flag.String("flush_after", "10s", `
 Connections which have buffered packets (they've gotten packets out of order and
 are waiting for old packets to fill the gaps) are flushed after they're this old
 (their oldest gap is skipped).  Any string parsed by time.ParseDuration is
@@ -31,59 +30,6 @@ acceptable here`)
 var packetCount = flag.Int("c", -1, `
 Quit after processing this many packets, flushing all currently buffered
 connections.  If negative, this is infinite`)
-
-// simpleStreamFactory implements tcpassembly.StreamFactory
-type statsStreamFactory struct{}
-
-// statsStream will handle the actual decoding of stats requests.
-type statsStream struct {
-	net, transport                      gopacket.Flow
-	bytes, packets, outOfOrder, skipped int64
-	start, end                          time.Time
-	sawStart, sawEnd                    bool
-}
-
-// New creates a new stream.  It's called whenever the assembler sees a stream
-// it isn't currently following.
-func (factory *statsStreamFactory) New(net, transport gopacket.Flow) tcpassembly.Stream {
-	log.Printf("new stream %v:%v started", net, transport)
-	s := &statsStream{
-		net:       net,
-		transport: transport,
-		start:     time.Now(),
-	}
-	s.end = s.start
-	// ReaderStream implements tcpassembly.Stream, so we can return a pointer to it.
-	return s
-}
-
-// Reassembled is called whenever new packet data is available for reading.
-// Reassembly objects contain stream data IN ORDER.
-func (s *statsStream) Reassembled(reassemblies []tcpassembly.Reassembly) {
-	for _, reassembly := range reassemblies {
-		if reassembly.Seen.Before(s.end) {
-			s.outOfOrder++
-		} else {
-			s.end = reassembly.Seen
-		}
-		s.bytes += int64(len(reassembly.Bytes))
-		s.packets += 1
-		if reassembly.Skip > 0 {
-			s.skipped += int64(reassembly.Skip)
-		}
-		s.sawStart = s.sawStart || reassembly.Start
-		s.sawEnd = s.sawEnd || reassembly.End
-	}
-}
-
-// ReassemblyComplete is called when the TCP assembler believes a stream has
-// finished.
-func (s *statsStream) ReassemblyComplete() {
-	diffSecs := float64(s.end.Sub(s.start)) / float64(time.Second)
-	log.Printf("Reassembly of stream %v:%v complete - start:%v end:%v bytes:%v packets:%v ooo:%v bps:%v pps:%v skipped:%v",
-		s.net, s.transport, s.start, s.end, s.bytes, s.packets, s.outOfOrder,
-		float64(s.bytes)/diffSecs, float64(s.packets)/diffSecs, s.skipped)
-}
 
 func pcapStart() {
 	defer util.Run()()
@@ -102,13 +48,6 @@ func pcapStart() {
 	if err := handle.SetBPFFilter(*filter); err != nil {
 		log.Fatal("error setting BPF filter: ", err)
 	}
-
-	// Set up assembly
-	streamFactory := &statsStreamFactory{}
-	streamPool := tcpassembly.NewStreamPool(streamFactory)
-	assembler := tcpassembly.NewAssembler(streamPool)
-	assembler.MaxBufferedPagesPerConnection = *bufferedPerConnection
-	assembler.MaxBufferedPagesTotal = *bufferedTotal
 
 	log.Println("reading in packets")
 
@@ -143,8 +82,7 @@ loop:
 		// never see packet data.
 		if time.Now().After(nextFlush) {
 			stats, _ := handle.Stats()
-			log.Printf("flushing all streams that haven't seen packets in the last 2 minutes, pcap stats: %+v", stats)
-			assembler.FlushOlderThan(time.Now().Add(flushDuration))
+			log.Printf("Reporting stats: %+v", stats)
 			nextFlush = time.Now().Add(flushDuration / 2)
 		}
 
@@ -157,7 +95,7 @@ loop:
 		// appropriate for high-throughput sniffing:  it avoids a packet
 		// copy, but its cost is much more careful handling of the
 		// resulting byte slice.
-		data, ci, err := handle.ZeroCopyReadPacketData()
+		data, _, err := handle.ZeroCopyReadPacketData() // Replace under with ci to get another object with more information
 
 		if err != nil {
 			log.Printf("error getting packet: %v", err)
@@ -174,27 +112,19 @@ loop:
 		byteCount += int64(len(data))
 		// Find either the IPv4 or IPv6 address to use as our network
 		// layer.
-		foundNetLayer := false
-		var netFlow gopacket.Flow
 		for _, typ := range decoded {
-			switch typ {
-			case layers.LayerTypeIPv4:
-				netFlow = ip4.NetworkFlow()
-				foundNetLayer = true
-			case layers.LayerTypeIPv6:
-				netFlow = ip6.NetworkFlow()
-				foundNetLayer = true
-			case layers.LayerTypeTCP:
-				if foundNetLayer {
-					assembler.AssembleWithTimestamp(netFlow, &tcp, ci.Timestamp)
-				} else {
-					log.Println("could not find IPv4 or IPv6 layer, inoring")
-				}
-				continue loop
+            if typ == layers.LayerTypeIPv4 {
+                log.Println("IPv4: ", ip4.SrcIP, "->", ip4.DstIP)
+            }
+			if typ == layers.LayerTypeIPv6 {
+				log.Println("IPv6: ", ip6.SrcIP, "->", ip6.DstIP)
 			}
-		}
-		log.Println("could not find TCP layer")
+            if typ == layers.LayerTypeTCP {
+                log.Println("TCP Port: ", tcp.SrcPort, "->", tcp.DstPort)
+                log.Println("TCP SYN:", tcp.SYN, " | ACK:", tcp.ACK)
+				continue loop
+            }
+        }
 	}
-	assembler.FlushAll()
 	log.Printf("processed %d bytes in %v", byteCount, time.Since(start))
 }
