@@ -34,6 +34,8 @@ connections.  If negative, this is infinite`)
 func pcapStart() {
 	defer util.Run()()
 
+	startPrometheus()
+
 	flushDuration, err := time.ParseDuration(*flushAfter)
 	if err != nil {
 		log.Fatal("invalid flush duration: ", *flushAfter)
@@ -65,8 +67,9 @@ func pcapStart() {
 	var tcp layers.TCP
 	var tls layers.TLS
 	var payload gopacket.Payload
+	var udp layers.UDP
 	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet,
-		&eth, &dot1q, &ip4, &ip6, &ip6extensions, &tcp, &tls, &payload)
+		&eth, &dot1q, &ip4, &ip6, &ip6extensions, &tcp, &tls, &payload, &udp)
 	decoded := make([]gopacket.LayerType, 0, 4)
 
 	nextFlush := time.Now().Add(flushDuration / 2)
@@ -82,7 +85,7 @@ loop:
 		// never see packet data.
 		if time.Now().After(nextFlush) {
 			stats, _ := handle.Stats()
-			log.Printf("Reporting stats: %+v", stats)
+			log.Println("Reporting stats: %+v", stats)
 			nextFlush = time.Now().Add(flushDuration / 2)
 		}
 
@@ -95,10 +98,10 @@ loop:
 		// appropriate for high-throughput sniffing:  it avoids a packet
 		// copy, but its cost is much more careful handling of the
 		// resulting byte slice.
-		data, _, err := handle.ZeroCopyReadPacketData() // Replace under with ci to get another object with more information
+		data, _, err := handle.ZeroCopyReadPacketData() // TODO: Replace underscore with ci to get another object with more information
 
 		if err != nil {
-			log.Printf("error getting packet: %v", err)
+			//log.Printf("error getting packet: %v", err)
 			continue
 		}
 		err = parser.DecodeLayers(data, &decoded)
@@ -110,8 +113,12 @@ loop:
 			log.Printf("decoded the following layers: %v", decoded)
 		}
 		byteCount += int64(len(data))
-		// Find either the IPv4 or IPv6 address to use as our network
-		// layer.
+		// Find either the IPv4 or IPv6 address addresses and any other
+		// information to report on
+
+		// TODO: Add IANA default ports for reporting on protocols used
+		// TODO: Keep track of TLS version being used
+		// TODO: Keep track of packet counts during a window, bytes during a window, separate sends and receives
 		for _, typ := range decoded {
             if typ == layers.LayerTypeIPv4 {
                 log.Println("IPv4: ", ip4.SrcIP, "->", ip4.DstIP)
@@ -124,6 +131,10 @@ loop:
                 log.Println("TCP SYN:", tcp.SYN, " | ACK:", tcp.ACK)
 				continue loop
             }
+			if typ == layers.LayerTypeUDP {
+				log.Println("UDP Port: ", udp.SrcPort, "->", udp.DstPort)
+				continue loop
+			}
         }
 	}
 	log.Printf("processed %d bytes in %v", byteCount, time.Since(start))

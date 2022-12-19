@@ -5,6 +5,7 @@ import (
 )
 
 func main() {
-	fmt.Println("Hello, World!")
+	// TODO: Read in config file
+	fmt.Println("Starting Capture Process")
 	pcapStart()
 }
