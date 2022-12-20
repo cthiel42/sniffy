@@ -119,23 +119,24 @@ loop:
 		// TODO: Add IANA default ports for reporting on protocols used
 		// TODO: Keep track of TLS version being used
 		// TODO: Keep track of packet counts during a window, bytes during a window, separate sends and receives
+
 		for _, typ := range decoded {
-            if typ == layers.LayerTypeIPv4 {
-                log.Println("IPv4: ", ip4.SrcIP, "->", ip4.DstIP)
-            }
-			if typ == layers.LayerTypeIPv6 {
-				log.Println("IPv6: ", ip6.SrcIP, "->", ip6.DstIP)
+			if typ == layers.LayerTypeIPv4 {
+				promIP(ip4.SrcIP.String(), ip4.DstIP.String())
 			}
-            if typ == layers.LayerTypeTCP {
-                log.Println("TCP Port: ", tcp.SrcPort, "->", tcp.DstPort)
-                log.Println("TCP SYN:", tcp.SYN, " | ACK:", tcp.ACK)
+			if typ == layers.LayerTypeIPv6 {
+				promIP(ip6.SrcIP.String(), ip6.DstIP.String())
+			}
+			if typ == layers.LayerTypeTCP {
+				log.Println("TCP Port: ", tcp.SrcPort, "->", tcp.DstPort)
+				log.Println("TCP SYN:", tcp.SYN, " | ACK:", tcp.ACK)
 				continue loop
-            }
+			}
 			if typ == layers.LayerTypeUDP {
 				log.Println("UDP Port: ", udp.SrcPort, "->", udp.DstPort)
 				continue loop
 			}
-        }
+		}
 	}
 	log.Printf("processed %d bytes in %v", byteCount, time.Since(start))
 }

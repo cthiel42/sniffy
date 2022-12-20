@@ -1,11 +1,13 @@
 # sniffy
 Packet Sniffing and Analysis Tool
 
+### Environment Setup
+- Need to have Golang version 1.18+ installed
+- You'll also likely need to install a package called libpcap-dev or libpcap-devel (depending on what package manager you're using) to handle a pcap.h error
+
+
 Steps:
 
-1) Get it to read pcap file and generate stats
-2) Break read and stats out into inputs and outputs
-    - analysis done and stats generated will be part of the output since it's output dependent
-3) Create tcpdump input
-4) Create PromQL output
-5) Create config logic to decide what input and output gets selected
+1) Create PromQL output
+2) Create config logic to decide what input and output gets selected
+3) Add switches into the code to allow certain analysis and statistics to be or not be reported
