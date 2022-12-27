@@ -101,42 +101,92 @@ loop:
 		data, _, err := handle.ZeroCopyReadPacketData() // TODO: Replace underscore with ci to get another object with more information
 
 		if err != nil {
-			//log.Printf("error getting packet: %v", err)
+			//log.Printf("error getting packet: %v", err) // DEBUG
 			continue
 		}
 		err = parser.DecodeLayers(data, &decoded)
 		if err != nil {
-			log.Printf("error decoding packet: %v", err)
+			//log.Printf("error decoding packet: %v", err) // DEBUG
 			continue
 		}
 		if *logAllPackets {
 			log.Printf("decoded the following layers: %v", decoded)
 		}
 		byteCount += int64(len(data))
-		// Find either the IPv4 or IPv6 address addresses and any other
-		// information to report on
+		// Find IP addresses, ports, MAC addresses, and any other information
+		// in the packet that would be relevant
 
 		// TODO: Add IANA default ports for reporting on protocols used
-		// TODO: Keep track of TLS version being used
 		// TODO: Keep track of packet counts during a window, bytes during a window, separate sends and receives
 
+		// log.Println(decoded) // DEBUG
+		sourceMAC := ""
+		destinationMAC := ""
+		sourceIP := ""
+		destinationIP := ""
+		sourcePort := ""
+		destinationPort := ""
+		layer4Protocol := ""
+		tcpFlag := ""
+		tlsVersion := "none"
 		for _, typ := range decoded {
+			if typ == layers.LayerTypeEthernet {
+				sourceMAC = eth.SrcMAC.String()
+				destinationMAC = eth.DstMAC.String()
+				continue
+			}
 			if typ == layers.LayerTypeIPv4 {
-				promIP(ip4.SrcIP.String(), ip4.DstIP.String())
+				sourceIP = ip4.SrcIP.String()
+				destinationIP = ip4.DstIP.String()
+				continue
 			}
 			if typ == layers.LayerTypeIPv6 {
-				promIP(ip6.SrcIP.String(), ip6.DstIP.String())
+				sourceIP = ip6.SrcIP.String()
+				destinationIP = ip6.DstIP.String()
+				continue
 			}
 			if typ == layers.LayerTypeTCP {
-				log.Println("TCP Port: ", tcp.SrcPort, "->", tcp.DstPort)
-				log.Println("TCP SYN:", tcp.SYN, " | ACK:", tcp.ACK)
-				continue loop
+				if tcp.SYN {
+					tcpFlag = "SYN"
+				} else if tcp.ACK {
+					tcpFlag = "ACK"
+				} else if tcp.FIN {
+					tcpFlag = "FIN"
+				} else if tcp.RST {
+					tcpFlag = "RST"
+				} else if tcp.PSH {
+					tcpFlag = "PSH"
+				} else if tcp.URG {
+					tcpFlag = "URG"
+				} else if tcp.ECE {
+					tcpFlag = "ECE"
+				} else if tcp.CWR {
+					tcpFlag = "CWR"
+				} else if tcp.NS {
+					tcpFlag = "NS"
+				} else {
+					tcpFlag = "nil"
+				}
+				sourcePort = tcp.SrcPort.String()
+				destinationPort = tcp.DstPort.String()
+				layer4Protocol = "TCP"
+				continue
 			}
 			if typ == layers.LayerTypeUDP {
-				log.Println("UDP Port: ", udp.SrcPort, "->", udp.DstPort)
-				continue loop
+				sourcePort = udp.SrcPort.String()
+				destinationPort = udp.DstPort.String()
+				layer4Protocol = "UDP"
+				continue
+			}
+			if typ == layers.LayerTypeTLS {
+				if len(tls.AppData) > 0 {
+					tlsVersion = tls.AppData[0].Version.String()
+				}
+				continue
 			}
 		}
+		PrometheusMetric.WithLabelValues(sourceMAC, destinationMAC, sourceIP, destinationIP, sourcePort, destinationPort, layer4Protocol, tcpFlag, tlsVersion).Inc()
+		continue loop
 	}
 	log.Printf("processed %d bytes in %v", byteCount, time.Since(start))
 }

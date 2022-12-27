@@ -8,6 +8,6 @@ Packet Sniffing and Analysis Tool
 
 Steps:
 
-1) Create PromQL output
-2) Create config logic to decide what input and output gets selected
-3) Add switches into the code to allow certain analysis and statistics to be or not be reported
+- Test this in the lab with a prometheus server and see what performance is like
+- Create config logic to decide what input and output gets selected
+- Add switches into the code to allow certain analysis and statistics to be or not be reported

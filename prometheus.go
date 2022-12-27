@@ -8,18 +8,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// var IPMetrics = map[string]string{}
-var IPPrometheusMetric *prometheus.CounterVec
+var PrometheusMetric *prometheus.CounterVec
 
 func startPrometheus() {
-	IPPrometheusMetric = prometheus.NewCounterVec(
+	PrometheusMetric = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "packets_sent_by_ip_address",
-			Help: "How many packets have been sent between the source and destination IP addresses.",
+			Name: "packets_sent_counter",
+			Help: "How many packets have been sent between the .",
 		},
-		[]string{"source", "destination"},
+		[]string{"sourceMAC", "destinationMAC", "sourceIP", "destinationIP", "sourcePort", "destinationPort", "layer4Protocol", "tcpFlag", "tlsVersion"},
 	)
-	prometheus.MustRegister(IPPrometheusMetric)
+	prometheus.MustRegister(PrometheusMetric)
 
 	// Expose /metrics HTTP endpoint using the created custom registry.
 	go func() {
@@ -29,7 +28,8 @@ func startPrometheus() {
 
 }
 
-func promIP(SrcIP, DstIP string) {
-	log.Println(SrcIP, DstIP)
-	IPPrometheusMetric.WithLabelValues(SrcIP, DstIP).Inc()
+// Not being used but keeping this here as a template for expansion
+func promMetric(SrcIP, DstIP string) {
+	// log.Println(SrcIP, DstIP)
+	PrometheusMetric.WithLabelValues(SrcIP, DstIP).Inc()
 }
