@@ -13,23 +13,14 @@ import (
 
 var iface = flag.String("i", "eth0", "Interface to get packets from")
 var snaplen = flag.Int("s", 65536, "SnapLen for pcap packet capture")
-var filter = flag.String("f", "tcp", "BPF filter for pcap")
-var logAllPackets = flag.Bool("v", false, "Log whenever we see a packet")
-var bufferedPerConnection = flag.Int("connection_max_buffer", 0, `
-Max packets to buffer for a single connection before skipping over a gap in data
-and continuing to stream the connection after the buffer.  If zero or less, this
-is infinite.`)
-var bufferedTotal = flag.Int("total_max_buffer", 0, `
-Max packets to buffer total before skipping over gaps in connections and
-continuing to stream connection data.  If zero or less, this is infinite`)
+
+//var filter = flag.String("f", "tcp", "BPF filter for pcap")
+var logAllPackets = flag.Bool("v", false, "Log whenever we see a packet. This will generate a significant number of logs and should only be used for debugging")
 var flushAfter = flag.String("flush_after", "10s", `
 Connections which have buffered packets (they've gotten packets out of order and
 are waiting for old packets to fill the gaps) are flushed after they're this old
 (their oldest gap is skipped).  Any string parsed by time.ParseDuration is
 acceptable here`)
-var packetCount = flag.Int("c", -1, `
-Quit after processing this many packets, flushing all currently buffered
-connections.  If negative, this is infinite`)
 
 func pcapStart() {
 	defer util.Run()()
@@ -47,9 +38,9 @@ func pcapStart() {
 	if err != nil {
 		log.Fatal("error opening pcap handle: ", err)
 	}
-	if err := handle.SetBPFFilter(*filter); err != nil {
-		log.Fatal("error setting BPF filter: ", err)
-	}
+	// if err := handle.SetBPFFilter(*filter); err != nil {
+	// 	log.Fatal("error setting BPF filter: ", err)
+	// }
 
 	log.Println("reading in packets")
 
@@ -78,7 +69,7 @@ func pcapStart() {
 	start := time.Now()
 
 loop:
-	for ; *packetCount != 0; *packetCount-- {
+	for {
 		// Check to see if we should flush the streams we have
 		// that haven't seen any new data in a while.  Note we set a
 		// timeout on our PCAP handle, so this should happen even if we
