@@ -22,17 +22,37 @@ type TTLMap struct {
 
 var prometheus_expire_after = flag.Int64("prometheus_expire_after", 3600, "After how many seconds of not seeing a metric be updated should that metric be expired and no longer reported. This is a critical configuration for cardinality issues. Expire more frequently if cardinality becomes an issue in the exporter.")
 var prometheus_expiration_interval = flag.Int("prometheus_expiration_interval", 60, "How often in seconds the routine that expires metrics should be run")
-var PrometheusMetric *prometheus.CounterVec
+var PrometheusMetricGeneric *prometheus.CounterVec
+var PrometheusMetricIncoming *prometheus.CounterVec
+var PrometheusMetricOutgoing *prometheus.CounterVec
 
 func startPrometheus() {
-	PrometheusMetric = prometheus.NewCounterVec(
+	PrometheusMetricGeneric = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "packets_sent_counter",
-			Help: "How many packets have been sent between the .",
+			Name: "packets_counter",
+			Help: "How many packets have been seen between the given source and destination fields. This is used for packets where the source/destination can't be identified as the local machine",
 		},
 		[]string{"sourceMAC", "destinationMAC", "sourceIP", "destinationIP", "sourcePort", "destinationPort", "layer4Protocol", "tcpFlag", "tlsVersion"},
 	)
-	prometheus.MustRegister(PrometheusMetric)
+	prometheus.MustRegister(PrometheusMetricGeneric)
+
+	PrometheusMetricIncoming = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "incoming_packets_counter",
+			Help: "How many packets have been seen incoming from the source fields to the local machine",
+		},
+		[]string{"sourceMAC", "destinationMAC", "sourceIP", "destinationIP", "sourcePort", "destinationPort", "layer4Protocol", "tcpFlag", "tlsVersion"},
+	)
+	prometheus.MustRegister(PrometheusMetricIncoming)
+
+	PrometheusMetricOutgoing = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "outgoing_packets_counter",
+			Help: "How many packets have been seen outgoing from the local machine to the destination fields",
+		},
+		[]string{"sourceMAC", "destinationMAC", "sourceIP", "destinationIP", "sourcePort", "destinationPort", "layer4Protocol", "tcpFlag", "tlsVersion"},
+	)
+	prometheus.MustRegister(PrometheusMetricOutgoing)
 
 	// Expose /metrics HTTP endpoint using the created custom registry.
 	go func() {
@@ -45,7 +65,7 @@ func startPrometheus() {
 // Not being used but keeping this here as a template for expansion
 func promMetric(SrcIP, DstIP string) {
 	// log.Println(SrcIP, DstIP)
-	PrometheusMetric.WithLabelValues(SrcIP, DstIP).Inc()
+	PrometheusMetricGeneric.WithLabelValues(SrcIP, DstIP).Inc()
 }
 
 func New() (m *TTLMap) {

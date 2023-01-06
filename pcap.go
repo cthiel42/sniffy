@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"net"
 	"time"
 
 	"github.com/google/gopacket"
@@ -24,6 +25,9 @@ acceptable here`)
 
 func pcapStart() {
 	defer util.Run()()
+
+	localMAC := localAddresses()
+	log.Print(localMAC)
 
 	startPrometheus()
 
@@ -63,23 +67,11 @@ func pcapStart() {
 		&eth, &dot1q, &ip4, &ip6, &ip6extensions, &tcp, &tls, &payload, &udp)
 	decoded := make([]gopacket.LayerType, 0, 4)
 
-	nextFlush := time.Now().Add(flushDuration / 2)
-
 	var byteCount int64
 	start := time.Now()
 
 loop:
 	for {
-		// Check to see if we should flush the streams we have
-		// that haven't seen any new data in a while.  Note we set a
-		// timeout on our PCAP handle, so this should happen even if we
-		// never see packet data.
-		if time.Now().After(nextFlush) {
-			stats, _ := handle.Stats()
-			log.Println("Reporting stats: %+v", stats)
-			nextFlush = time.Now().Add(flushDuration / 2)
-		}
-
 		// To speed things up, we're also using the ZeroCopy method for
 		// reading packet data.  This method is faster than the normal
 		// ReadPacketData, but the returned bytes in 'data' are
@@ -176,8 +168,17 @@ loop:
 				continue
 			}
 		}
-		PrometheusMetric.WithLabelValues(sourceMAC, destinationMAC, sourceIP, destinationIP, sourcePort, destinationPort, layer4Protocol, tcpFlag, tlsVersion).Inc()
+		PrometheusMetricGeneric.WithLabelValues(sourceMAC, destinationMAC, sourceIP, destinationIP, sourcePort, destinationPort, layer4Protocol, tcpFlag, tlsVersion).Inc()
 		continue loop
 	}
 	log.Printf("processed %d bytes in %v", byteCount, time.Since(start))
+}
+
+func localAddresses() string {
+	networkInterfaces, err := net.InterfaceByName(*iface)
+	if err != nil {
+		log.Printf("localAddresses: %+v\n", err.Error())
+		return ""
+	}
+	return networkInterfaces.HardwareAddr.String()
 }
