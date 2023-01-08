@@ -12,6 +12,18 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
+type PacketData struct {
+	sourceMAC       string
+	destinationMAC  string
+	sourceIP        string
+	destinationIP   string
+	sourcePort      string
+	destinationPort string
+	layer4Protocol  string
+	tcpFlag         string
+	tlsVersion      string
+}
+
 var iface = flag.String("i", "eth0", "Interface to get packets from")
 var snaplen = flag.Int("s", 65536, "SnapLen for pcap packet capture")
 
@@ -26,8 +38,7 @@ acceptable here`)
 func pcapStart() {
 	defer util.Run()()
 
-	localMAC := localAddresses()
-	log.Print(localMAC)
+	localMAC = localAddresses()
 
 	startPrometheus()
 
@@ -103,72 +114,64 @@ loop:
 		// TODO: Keep track of packet counts during a window, bytes during a window, separate sends and receives
 
 		// log.Println(decoded) // DEBUG
-		sourceMAC := ""
-		destinationMAC := ""
-		sourceIP := ""
-		destinationIP := ""
-		sourcePort := ""
-		destinationPort := ""
-		layer4Protocol := ""
-		tcpFlag := ""
-		tlsVersion := "none"
+		packetData := PacketData{tlsVersion: "None"}
 		for _, typ := range decoded {
 			if typ == layers.LayerTypeEthernet {
-				sourceMAC = eth.SrcMAC.String()
-				destinationMAC = eth.DstMAC.String()
+				packetData.sourceMAC = eth.SrcMAC.String()
+				packetData.destinationMAC = eth.DstMAC.String()
 				continue
 			}
 			if typ == layers.LayerTypeIPv4 {
-				sourceIP = ip4.SrcIP.String()
-				destinationIP = ip4.DstIP.String()
+				packetData.sourceIP = ip4.SrcIP.String()
+				packetData.destinationIP = ip4.DstIP.String()
 				continue
 			}
 			if typ == layers.LayerTypeIPv6 {
-				sourceIP = ip6.SrcIP.String()
-				destinationIP = ip6.DstIP.String()
+				packetData.sourceIP = ip6.SrcIP.String()
+				packetData.destinationIP = ip6.DstIP.String()
 				continue
 			}
 			if typ == layers.LayerTypeTCP {
 				if tcp.SYN {
-					tcpFlag = "SYN"
+					packetData.tcpFlag = "SYN"
 				} else if tcp.ACK {
-					tcpFlag = "ACK"
+					packetData.tcpFlag = "ACK"
 				} else if tcp.FIN {
-					tcpFlag = "FIN"
+					packetData.tcpFlag = "FIN"
 				} else if tcp.RST {
-					tcpFlag = "RST"
+					packetData.tcpFlag = "RST"
 				} else if tcp.PSH {
-					tcpFlag = "PSH"
+					packetData.tcpFlag = "PSH"
 				} else if tcp.URG {
-					tcpFlag = "URG"
+					packetData.tcpFlag = "URG"
 				} else if tcp.ECE {
-					tcpFlag = "ECE"
+					packetData.tcpFlag = "ECE"
 				} else if tcp.CWR {
-					tcpFlag = "CWR"
+					packetData.tcpFlag = "CWR"
 				} else if tcp.NS {
-					tcpFlag = "NS"
+					packetData.tcpFlag = "NS"
 				} else {
-					tcpFlag = "nil"
+					packetData.tcpFlag = "nil"
 				}
-				sourcePort = tcp.SrcPort.String()
-				destinationPort = tcp.DstPort.String()
-				layer4Protocol = "TCP"
+				packetData.sourcePort = tcp.SrcPort.String()
+				packetData.destinationPort = tcp.DstPort.String()
+				packetData.layer4Protocol = "TCP"
 				continue
 			}
 			if typ == layers.LayerTypeUDP {
-				sourcePort = udp.SrcPort.String()
-				destinationPort = udp.DstPort.String()
-				layer4Protocol = "UDP"
+				packetData.sourcePort = udp.SrcPort.String()
+				packetData.destinationPort = udp.DstPort.String()
+				packetData.layer4Protocol = "UDP"
 				continue
 			}
 			if typ == layers.LayerTypeTLS {
 				if len(tls.AppData) > 0 {
-					tlsVersion = tls.AppData[0].Version.String()
+					packetData.tlsVersion = tls.AppData[0].Version.String()
 				}
 				continue
 			}
 		}
-		PrometheusMetricGeneric.WithLabelValues(sourceMAC, destinationMAC, sourceIP, destinationIP, sourcePort, destinationPort, layer4Protocol, tcpFlag, tlsVersion).Inc()
+		postPromethetheusMetric(packetData)
 		continue loop
 	}
 	log.Printf("processed %d bytes in %v", byteCount, time.Since(start))

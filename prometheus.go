@@ -25,6 +25,7 @@ var prometheus_expiration_interval = flag.Int("prometheus_expiration_interval", 
 var PrometheusMetricGeneric *prometheus.CounterVec
 var PrometheusMetricIncoming *prometheus.CounterVec
 var PrometheusMetricOutgoing *prometheus.CounterVec
+var localMAC string
 
 func startPrometheus() {
 	PrometheusMetricGeneric = prometheus.NewCounterVec(
@@ -62,10 +63,15 @@ func startPrometheus() {
 
 }
 
-// Not being used but keeping this here as a template for expansion
-func promMetric(SrcIP, DstIP string) {
-	// log.Println(SrcIP, DstIP)
-	PrometheusMetricGeneric.WithLabelValues(SrcIP, DstIP).Inc()
+func postPromethetheusMetric(packetData PacketData) {
+	// log.Println(packetData)
+	if localMAC == packetData.sourceMAC {
+		PrometheusMetricOutgoing.WithLabelValues(packetData.sourceMAC, packetData.destinationMAC, packetData.sourceIP, packetData.destinationIP, packetData.sourcePort, packetData.destinationPort, packetData.layer4Protocol, packetData.tcpFlag, packetData.tlsVersion).Inc()
+	} else if localMAC == packetData.destinationMAC {
+		PrometheusMetricIncoming.WithLabelValues(packetData.sourceMAC, packetData.destinationMAC, packetData.sourceIP, packetData.destinationIP, packetData.sourcePort, packetData.destinationPort, packetData.layer4Protocol, packetData.tcpFlag, packetData.tlsVersion).Inc()
+	} else {
+		PrometheusMetricGeneric.WithLabelValues(packetData.sourceMAC, packetData.destinationMAC, packetData.sourceIP, packetData.destinationIP, packetData.sourcePort, packetData.destinationPort, packetData.layer4Protocol, packetData.tcpFlag, packetData.tlsVersion).Inc()
+	}
 }
 
 func New() (m *TTLMap) {
