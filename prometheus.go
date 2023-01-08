@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,14 +21,17 @@ type TTLMap struct {
 	l sync.Mutex
 }
 
-var prometheus_expire_after = flag.Int64("prometheus_expire_after", 3600, "After how many seconds of not seeing a metric be updated should that metric be expired and no longer reported. This is a critical configuration for cardinality issues. Expire more frequently if cardinality becomes an issue in the exporter.")
+var prometheus_expire_after = flag.Int64("prometheus_expire_after", 600, "After how many seconds of not seeing a metric be updated should that metric be expired and no longer reported. This is a critical configuration for cardinality issues. Expire more frequently if cardinality becomes an issue in the exporter.")
 var prometheus_expiration_interval = flag.Int("prometheus_expiration_interval", 60, "How often in seconds the routine that expires metrics should be run")
 var PrometheusMetricGeneric *prometheus.CounterVec
 var PrometheusMetricIncoming *prometheus.CounterVec
 var PrometheusMetricOutgoing *prometheus.CounterVec
 var localMAC string
+var expirationMap *TTLMap
 
 func startPrometheus() {
+	expirationMap = NewTTLMap()
+
 	PrometheusMetricGeneric = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "packets_counter",
@@ -65,6 +69,7 @@ func startPrometheus() {
 
 func postPromethetheusMetric(packetData PacketData) {
 	// log.Println(packetData)
+	expirationMap.TTLMapPut(makeKeyFromPacketData(packetData))
 	if localMAC == packetData.sourceMAC {
 		PrometheusMetricOutgoing.WithLabelValues(packetData.sourceMAC, packetData.destinationMAC, packetData.sourceIP, packetData.destinationIP, packetData.sourcePort, packetData.destinationPort, packetData.layer4Protocol, packetData.tcpFlag, packetData.tlsVersion).Inc()
 	} else if localMAC == packetData.destinationMAC {
@@ -74,27 +79,39 @@ func postPromethetheusMetric(packetData PacketData) {
 	}
 }
 
-func New() (m *TTLMap) {
+func NewTTLMap() (m *TTLMap) {
 	m = &TTLMap{m: make(map[string]*metric)}
 	go func() {
 		for now := range time.Tick(time.Second * time.Duration(*prometheus_expiration_interval)) {
+			log.Println("Running cleanup routine")
 			m.l.Lock()
+			totalItemsCount := 0
+			totalItemsExpired := 0
 			for k, v := range m.m {
+				totalItemsCount++
 				if now.Unix()-v.lastAccess > *prometheus_expire_after {
+					totalItemsExpired++
+					labels := makePacketDataFromKey(k)
+					PrometheusMetricGeneric.DeleteLabelValues(labels[0], labels[1], labels[2], labels[3], labels[4], labels[5], labels[6], labels[7], labels[8])
+					PrometheusMetricIncoming.DeleteLabelValues(labels[0], labels[1], labels[2], labels[3], labels[4], labels[5], labels[6], labels[7], labels[8])
+					PrometheusMetricOutgoing.DeleteLabelValues(labels[0], labels[1], labels[2], labels[3], labels[4], labels[5], labels[6], labels[7], labels[8])
 					delete(m.m, k)
 				}
 			}
 			m.l.Unlock()
+			log.Println("Cleanup routine finished")
+			log.Printf("Number of metrics expired: %v", totalItemsExpired)
+			log.Printf("New metric map size: %v", totalItemsCount-totalItemsExpired)
 		}
 	}()
 	return
 }
 
-func (m *TTLMap) Len() int {
+func (m *TTLMap) TTLMapLen() int {
 	return len(m.m)
 }
 
-func (m *TTLMap) Put(k, v string) {
+func (m *TTLMap) TTLMapPut(k string) {
 	m.l.Lock()
 	it, ok := m.m[k]
 	if !ok {
@@ -105,7 +122,7 @@ func (m *TTLMap) Put(k, v string) {
 	m.l.Unlock()
 }
 
-func (m *TTLMap) Get(k string) {
+func (m *TTLMap) TTLMapGet(k string) {
 	m.l.Lock()
 	if it, ok := m.m[k]; ok {
 		it.lastAccess = time.Now().Unix()
@@ -113,4 +130,21 @@ func (m *TTLMap) Get(k string) {
 	m.l.Unlock()
 	return
 
+}
+
+func makeKeyFromPacketData(packetData PacketData) string {
+	result := packetData.sourceMAC
+	result += "," + packetData.destinationMAC
+	result += "," + packetData.sourceIP
+	result += "," + packetData.destinationIP
+	result += "," + packetData.sourcePort
+	result += "," + packetData.destinationPort
+	result += "," + packetData.layer4Protocol
+	result += "," + packetData.tcpFlag
+	result += "," + packetData.tlsVersion
+	return result
+}
+
+func makePacketDataFromKey(key string) []string {
+	return strings.Split(key, ",")
 }
