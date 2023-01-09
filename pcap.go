@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"net"
 	"time"
@@ -24,23 +23,14 @@ type PacketData struct {
 	tlsVersion      string
 }
 
-var iface = flag.String("i", "eth0", "Interface to get packets from")
-var snaplen = flag.Int("s", 65536, "SnapLen for pcap packet capture")
-
-//var filter = flag.String("f", "tcp", "BPF filter for pcap")
-var logAllPackets = flag.Bool("v", false, "Log whenever we see a packet. This will generate a significant number of logs and should only be used for debugging")
-var flushAfter = flag.String("flush_after", "10s", `
-Connections which have buffered packets (they've gotten packets out of order and
-are waiting for old packets to fill the gaps) are flushed after they're this old
-(their oldest gap is skipped).  Any string parsed by time.ParseDuration is
-acceptable here`)
-
 func pcapStart() {
 	defer util.Run()()
 
-	localMAC = localAddresses()
-
-	startPrometheus()
+	if *local_mac_address == "" {
+		localMAC = localAddresses()
+	} else {
+		localMAC = *local_mac_address
+	}
 
 	flushDuration, err := time.ParseDuration(*flushAfter)
 	if err != nil {

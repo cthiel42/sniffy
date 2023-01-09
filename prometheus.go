@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"net/http"
 	"strings"
@@ -21,8 +20,6 @@ type TTLMap struct {
 	l sync.Mutex
 }
 
-var prometheus_expire_after = flag.Int64("prometheus_expire_after", 600, "After how many seconds of not seeing a metric be updated should that metric be expired and no longer reported. This is a critical configuration for cardinality issues. Expire more frequently if cardinality becomes an issue in the exporter.")
-var prometheus_expiration_interval = flag.Int("prometheus_expiration_interval", 60, "How often in seconds the routine that expires metrics should be run")
 var PrometheusMetricGeneric *prometheus.CounterVec
 var PrometheusMetricIncoming *prometheus.CounterVec
 var PrometheusMetricOutgoing *prometheus.CounterVec
