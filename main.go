@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
+	"github.com/spf13/viper"
 	"log"
-	// "github.com/spf13/viper"
 )
 
 var iface = flag.String("i", "eth0", "Interface to get packets from")
@@ -19,37 +19,49 @@ var prometheus_expire_after = flag.Int64("prometheus_expire_after", 20, "After h
 var prometheus_expiration_interval = flag.Int("prometheus_expiration_interval", 5, "How often in seconds the routine that expires metrics should be run")
 var local_mac_address = flag.String("local_mac_address", "", "MAC address to consider as being the local machine for incoming and outgoing packet counter metrics")
 
-// type Config struct {
-// 	iface                          string `mapstructure:"INTERFACE"`
-// 	snaplen                        int    `mapstructure:"SNAP_LEN"`
-// 	logAllPackets                  bool   `mapstructure:"LOG_ALL_PACKETS"`
-// 	flushAfter                     string `mapstructure:"FLUSH_AFTER"`
-// 	prometheus_expire_after        int64  `mapstructure:"PROMETHEUS_EXPIRE_AFTER"`
-// 	prometheus_expiration_interval int    `mapstructure:"PROMETHEUS_EXPIRATION_INTERVAL"`
-// 	local_mac_address              string `mapstructure:"LOCAL_MAC_ADDRESS"`
-// }
+type PCAP_INPUT struct {
+	IFACE           string `yaml:"interface"`
+	SNAP_LEN        int    `yaml:"snap_len"`
+	LOG_ALL_PACKETS bool   `yaml:"log_all_packets"`
+	FLUSH_AFTER     string `yaml:"flush_after"`
+}
+
+type PROMETHEUS_OUTPUT struct {
+	PROMETHEUS_EXPIRE_AFTER        int64  `yaml:"PROMETHEUS_EXPIRE_AFTER"`
+	PROMETHEUS_EXPIRATION_INTERVAL int    `yaml:"PROMETHEUS_EXPIRATION_INTERVAL"`
+	LOCAL_MAC_ADDRESS              string `yaml:"LOCAL_MAC_ADDRESS"`
+}
+
+type Config struct {
+	PCAP_INPUT        PCAP_INPUT        `yaml:"pcap_input"`
+	PROMETHEUS_OUTPUT PROMETHEUS_OUTPUT `yaml:"PROMETHEUS_OUTPUT"`
+}
 
 func main() {
 	log.Println("Loading Config")
-	//config, err := LoadConfig()
+
+	config, err := LoadConfig("/home/ec2-user/environment/sniffy/")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	log.Println(config)
 
 	log.Println("Starting Capture Process")
 	startPrometheus()
 	pcapStart()
 }
 
-// func LoadConfig(path string) (config Config, err error) {
-// 	viper.AddConfigPath(path)
-// 	viper.SetConfigName("app")
-// 	viper.SetConfigType("env")
+func LoadConfig(path string) (config Config, err error) {
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(path)
 
-// 	viper.AutomaticEnv()
+	err = viper.ReadInConfig()
+	if err != nil {
+		return
+	}
+	log.Println(viper.Get("PCAP_INPUT"))
 
-// 	err = viper.ReadInConfig()
-// 	if err != nil {
-// 		return
-// 	}
-
-// 	err = viper.Unmarshal(&config)
-// 	return
-// }
+	err = viper.Unmarshal(&config)
+	return
+}
