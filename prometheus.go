@@ -26,8 +26,8 @@ var PrometheusMetricOutgoing *prometheus.CounterVec
 var localMAC string
 var expirationMap *TTLMap
 
-func startPrometheus() {
-	expirationMap = NewTTLMap()
+func startPrometheus(config Config) {
+	expirationMap = NewTTLMap(config)
 
 	PrometheusMetricGeneric = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -76,17 +76,17 @@ func postPromethetheusMetric(packetData PacketData) {
 	}
 }
 
-func NewTTLMap() (m *TTLMap) {
+func NewTTLMap(config Config) (m *TTLMap) {
 	m = &TTLMap{m: make(map[string]*metric)}
 	go func() {
-		for now := range time.Tick(time.Second * time.Duration(*prometheus_expiration_interval)) {
+		for now := range time.Tick(time.Second * time.Duration(config.PROMETHEUS_OUTPUT.PROMETHEUS_EXPIRATION_INTERVAL)) {
 			log.Println("Running cleanup routine")
 			m.l.Lock()
 			totalItemsCount := 0
 			totalItemsExpired := 0
 			for k, v := range m.m {
 				totalItemsCount++
-				if now.Unix()-v.lastAccess > *prometheus_expire_after {
+				if now.Unix()-v.lastAccess > config.PROMETHEUS_OUTPUT.PROMETHEUS_EXPIRE_AFTER {
 					totalItemsExpired++
 					labels := makePacketDataFromKey(k)
 					PrometheusMetricGeneric.DeleteLabelValues(labels[0], labels[1], labels[2], labels[3], labels[4], labels[5], labels[6], labels[7], labels[8])

@@ -23,26 +23,27 @@ type PacketData struct {
 	tlsVersion      string
 }
 
-func pcapStart() {
+func pcapStart(config Config) {
 	defer util.Run()()
 
-	if *local_mac_address == "" {
-		localMAC = localAddresses()
+	if config.PCAP_INPUT.LOCAL_MAC_ADDRESS == "" {
+		localMAC = localAddresses(config.PCAP_INPUT.INTERFACE_NAME)
 	} else {
-		localMAC = *local_mac_address
+		localMAC = config.PCAP_INPUT.LOCAL_MAC_ADDRESS
 	}
 
-	flushDuration, err := time.ParseDuration(*flushAfter)
+	flushDuration, err := time.ParseDuration(config.PCAP_INPUT.FLUSH_AFTER)
 	if err != nil {
-		log.Fatal("invalid flush duration: ", *flushAfter)
+		log.Fatal("invalid flush duration: ", config.PCAP_INPUT.FLUSH_AFTER)
 	}
 
-	log.Printf("starting capture on interface %q", *iface)
+	log.Printf("starting capture on interface %q", config.PCAP_INPUT.INTERFACE_NAME)
 	// Set up pcap packet capture
-	handle, err := pcap.OpenLive(*iface, int32(*snaplen), true, flushDuration/2)
+	handle, err := pcap.OpenLive(config.PCAP_INPUT.INTERFACE_NAME, int32(config.PCAP_INPUT.SNAP_LEN), true, flushDuration/2)
 	if err != nil {
 		log.Fatal("error opening pcap handle: ", err)
 	}
+	// TODO: Look into adding a configuration setting for this to be set by the end user
 	// if err := handle.SetBPFFilter(*filter); err != nil {
 	// 	log.Fatal("error setting BPF filter: ", err)
 	// }
@@ -93,7 +94,7 @@ loop:
 			//log.Printf("error decoding packet: %v", err) // DEBUG
 			continue
 		}
-		if *logAllPackets {
+		if config.PCAP_INPUT.LOG_ALL_PACKETS {
 			log.Printf("decoded the following layers: %v", decoded)
 		}
 		byteCount += int64(len(data))
@@ -101,7 +102,8 @@ loop:
 		// in the packet that would be relevant
 
 		// TODO: Add IANA default ports for reporting on protocols used
-		// TODO: Keep track of packet counts during a window, bytes during a window, separate sends and receives
+		// TODO: Keep track of packet counts during a window, bytes during a window, separate sends and receives.
+		// Might be part of a histogram or summary metric
 
 		// log.Println(decoded) // DEBUG
 		packetData := PacketData{tlsVersion: "None"}
@@ -167,8 +169,8 @@ loop:
 	log.Printf("processed %d bytes in %v", byteCount, time.Since(start))
 }
 
-func localAddresses() string {
-	networkInterfaces, err := net.InterfaceByName(*iface)
+func localAddresses(iface string) string {
+	networkInterfaces, err := net.InterfaceByName(iface)
 	if err != nil {
 		log.Printf("localAddresses: %+v\n", err.Error())
 		return ""
