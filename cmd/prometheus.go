@@ -57,6 +57,7 @@ func startPrometheus(config Config) {
 	prometheus.MustRegister(PrometheusMetricOutgoing)
 
 	// Expose /metrics HTTP endpoint using the created custom registry.
+	// TODO: Make this port configurable
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
 		log.Fatal(http.ListenAndServe(":8080", nil))
@@ -65,7 +66,6 @@ func startPrometheus(config Config) {
 }
 
 func postPromethetheusMetric(packetData PacketData) {
-	// log.Println(packetData)
 	expirationMap.TTLMapPut(makeKeyFromPacketData(packetData))
 	if localMAC == packetData.sourceMAC {
 		PrometheusMetricOutgoing.WithLabelValues(packetData.sourceMAC, packetData.destinationMAC, packetData.sourceIP, packetData.destinationIP, packetData.sourcePort, packetData.destinationPort, packetData.layer4Protocol, packetData.tcpFlag, packetData.tlsVersion).Inc()

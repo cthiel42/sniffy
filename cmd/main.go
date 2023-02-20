@@ -6,7 +6,7 @@ import (
 	"log"
 )
 
-var configPath = flag.String("config", "config.yaml", "path to config file")
+var configPath = flag.String("config", "configs/config.yaml", "path to config file")
 
 type PCAP_INPUT struct {
 	INTERFACE_NAME    string `yaml:"interface_name"`
@@ -30,7 +30,7 @@ type Config struct {
 func main() {
 	log.Println("Loading Config")
 
-	config, err := LoadConfig("/home/ec2-user/environment/sniffy/")
+	config, err := LoadConfig()
 	if err != nil {
 		log.Println(err)
 		return
@@ -47,7 +47,7 @@ func main() {
 	pcapStart(config)
 }
 
-func LoadConfig(path string) (config Config, err error) {
+func LoadConfig() (config Config, err error) {
 	viper.SetConfigFile(*configPath)
 
 	err = viper.ReadInConfig()

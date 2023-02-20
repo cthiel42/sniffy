@@ -83,7 +83,7 @@ loop:
 		// appropriate for high-throughput sniffing:  it avoids a packet
 		// copy, but its cost is much more careful handling of the
 		// resulting byte slice.
-		data, _, err := handle.ZeroCopyReadPacketData() // TODO: Replace underscore with ci to get another object with more information
+		data, _, err := handle.ZeroCopyReadPacketData() // TODO: Replace _ with ci to get another object with more information
 
 		if err != nil {
 			//log.Printf("error getting packet: %v", err) // DEBUG
@@ -99,13 +99,12 @@ loop:
 		}
 		byteCount += int64(len(data))
 		// Find IP addresses, ports, MAC addresses, and any other information
-		// in the packet that would be relevant
+		// in the packet that would be relevant to report
 
 		// TODO: Add IANA default ports for reporting on protocols used
 		// TODO: Keep track of packet counts during a window, bytes during a window, separate sends and receives.
 		// Might be part of a histogram or summary metric
 
-		// log.Println(decoded) // DEBUG
 		packetData := PacketData{tlsVersion: "None"}
 		for _, typ := range decoded {
 			if typ == layers.LayerTypeEthernet {
