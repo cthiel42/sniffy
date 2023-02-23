@@ -23,4 +23,5 @@ For an example of the config file, look at `config.yaml`. Detailed configuration
   - `PROMETHEUS_EXPIRE_AFTER` // After how many seconds of not seeing a metric be updated should that metric be expired and no longer reported. This is a critical configuration for cardinality issues. Expire more frequently if cardinality becomes an issue in the exporter.
 
 Features to be worked on:
-- Create config logic to decide what input and output gets selected. Add switches into the code to allow certain analysis and statistics to be or not be reported
+- Create config logic to decide what input and output gets selected. Ideally like to have logging output for use with tools like ElasticSearch or Splunk.
+- Add switches into the code to allow certain analysis and statistics to be or not be reported. For Prometheus metrics this would be leaving some labels out to help with cardinality.
