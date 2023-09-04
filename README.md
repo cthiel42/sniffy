@@ -1,12 +1,22 @@
 # sniffy
-Packet Sniffing and Analysis Tool
+Metric collection tool for level 3 and 4 packet analysis. Currently supports monitoring a network interface and displaying results as Prometheus metrics.
+Data collected:
+- MAC addresses
+- Ports
+- IP addresses
+- Layer 4 Protocol Used
+- TCP Flag
+- TLS Version
+
+JSON for a basic Grafana dashboard built off Prometheus data from Sniffy can be found under `/dashboards`. 
 
 ### Environment Setup
 - Need to have Golang version 1.18+ installed
 - You'll also likely need to install a package called libpcap-dev or libpcap-devel (depending on what package manager you're using) to handle a pcap.h error
+- Running `go build cmd/*.go` from the root directory will build the binary, or running `go run cmd/*.go` will run the program from your terminal
 
 ### Config
-The config is specified in yaml and the application by default looks for it in the current working directory by the name `config.yaml`. You can override the path to the config with the command line flag `--config=\path\to\config.yaml`
+The config is specified in yaml and the application by default looks for it in a configs folder within the current working directory, i.e. `configs/config.yaml`. You can override the path to the config with the command line flag `--config=\path\to\config.yaml`
 
 For an example of the config file, look at `config.yaml`. Detailed configuration settings can be found listed below.
 
@@ -21,7 +31,8 @@ For an example of the config file, look at `config.yaml`. Detailed configuration
   - `ENABLED` // Enables the Prometheus metrics output
   - `PROMETHEUS_EXPIRATION_INTERVAL` // Specifies the interval in seconds on which the cleanup routine should run to expire stale data.
   - `PROMETHEUS_EXPIRE_AFTER` // After how many seconds of not seeing a metric be updated should that metric be expired and no longer reported. This is a critical configuration for cardinality issues. Expire more frequently if cardinality becomes an issue in the exporter.
+  - `PROMETHEUS_METRICS_PORT` // Port to run the /metrics endpoint on
 
 Features to be worked on:
+- Add switches into the code to allow certain analysis and statistics to be or not be reported. For Prometheus metrics this would allow leaving some labels out to help with cardinality.
 - Create config logic to decide what input and output gets selected. Ideally like to have logging output for use with tools like ElasticSearch or Splunk.
-- Add switches into the code to allow certain analysis and statistics to be or not be reported. For Prometheus metrics this would be leaving some labels out to help with cardinality.
