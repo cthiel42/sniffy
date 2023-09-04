@@ -20,6 +20,7 @@ type PROMETHEUS_OUTPUT struct {
 	ENABLED                        bool  `yaml:"enabled"`
 	PROMETHEUS_EXPIRE_AFTER        int64 `yaml:"prometheus_expire_after"`
 	PROMETHEUS_EXPIRATION_INTERVAL int   `yaml:"prometheus_expiration_interval"`
+	PROMETHEUS_METRICS_PORT        int   `yaml:"prometheus_metrics_port"`
 }
 
 type Config struct {
@@ -62,6 +63,7 @@ func LoadConfig() (config Config, err error) {
 	viper.SetDefault("PROMETHEUS_OUTPUT.enabled", true)
 	viper.SetDefault("PROMETHEUS_OUTPUT.prometheus_expire_after", 900)
 	viper.SetDefault("PROMETHEUS_OUTPUT.prometheus_expiration_interval", 60)
+	viper.SetDefault("PROMETHEUS_OUTPUT.prometheus_metrics_port", 8080)
 
 	err = viper.Unmarshal(&config)
 	return

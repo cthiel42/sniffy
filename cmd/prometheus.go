@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -60,7 +61,7 @@ func startPrometheus(config Config) {
 	// TODO: Make this port configurable
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		log.Fatal(http.ListenAndServe(":8080", nil))
+		log.Fatal(http.ListenAndServe(":"+strconv.Itoa(config.PROMETHEUS_OUTPUT.PROMETHEUS_METRICS_PORT), nil))
 	}()
 
 }
