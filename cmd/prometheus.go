@@ -58,7 +58,6 @@ func startPrometheus(config Config) {
 	prometheus.MustRegister(PrometheusMetricOutgoing)
 
 	// Expose /metrics HTTP endpoint using the created custom registry.
-	// TODO: Make this port configurable
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
 		log.Fatal(http.ListenAndServe(":"+strconv.Itoa(config.PROMETHEUS_OUTPUT.PROMETHEUS_METRICS_PORT), nil))
