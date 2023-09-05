@@ -20,7 +20,7 @@ The config is specified in yaml and the application by default looks for it in a
 
 For an example of the config file, look at `config.yaml`. Detailed configuration settings can be found listed below.
 
-![Grafana Dashboard Example](https://github.com/cthiel42/sniffy/blob/main/Capture.JPG?raw=true)
+![Grafana Dashboard Example](https://raw.githubusercontent.com/cthiel42/sniffy/main/dashboard/Capture.JPG)
 
 * `PCAP_INPUT` // This encompasses settings surrounding the interface packets are being captured on
   - `INTERFACE_NAME` // The interface name to capture packets on, as listed in a command such as ifconfig
