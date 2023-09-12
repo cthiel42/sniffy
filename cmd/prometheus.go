@@ -26,16 +26,24 @@ var PrometheusMetricIncoming *prometheus.CounterVec
 var PrometheusMetricOutgoing *prometheus.CounterVec
 var localMAC string
 var expirationMap *TTLMap
+var labels []string
 
 func startPrometheus(config Config) {
 	expirationMap = NewTTLMap(config)
+
+	labelOptions := []string{"sourceMAC", "destinationMAC", "sourceIP", "destinationIP", "sourcePort", "destinationPort", "layer4Protocol", "tcpFlag", "tlsVersion"}
+	for _, label := range labelOptions {
+		if !contains(config.PROMETHEUS_OUTPUT.PROMETHEUS_EXCLUDE_FIELDS, label) {
+			labels = append(labels, label)
+		}
+	}
 
 	PrometheusMetricGeneric = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "packets_counter",
 			Help: "How many packets have been seen between the given source and destination fields. This is used for packets where the source/destination can't be identified as the local machine",
 		},
-		[]string{"sourceMAC", "destinationMAC", "sourceIP", "destinationIP", "sourcePort", "destinationPort", "layer4Protocol", "tcpFlag", "tlsVersion"},
+		labels,
 	)
 	prometheus.MustRegister(PrometheusMetricGeneric)
 
@@ -44,7 +52,7 @@ func startPrometheus(config Config) {
 			Name: "incoming_packets_counter",
 			Help: "How many packets have been seen incoming from the source fields to the local machine",
 		},
-		[]string{"sourceMAC", "destinationMAC", "sourceIP", "destinationIP", "sourcePort", "destinationPort", "layer4Protocol", "tcpFlag", "tlsVersion"},
+		labels,
 	)
 	prometheus.MustRegister(PrometheusMetricIncoming)
 
@@ -53,7 +61,7 @@ func startPrometheus(config Config) {
 			Name: "outgoing_packets_counter",
 			Help: "How many packets have been seen outgoing from the local machine to the destination fields",
 		},
-		[]string{"sourceMAC", "destinationMAC", "sourceIP", "destinationIP", "sourcePort", "destinationPort", "layer4Protocol", "tcpFlag", "tlsVersion"},
+		labels,
 	)
 	prometheus.MustRegister(PrometheusMetricOutgoing)
 
@@ -67,12 +75,41 @@ func startPrometheus(config Config) {
 
 func postPromethetheusMetric(packetData PacketData) {
 	expirationMap.TTLMapPut(makeKeyFromPacketData(packetData))
+	dynamicLabels := make(prometheus.Labels)
+
+	// As gross as this switch statement is, the other option is to use
+	// reflect, which comes with a noticeable hit to runtime performance
+	// due to the need for type inference. The switch statement also
+	// provides type safety
+	for _, labelName := range labels {
+		switch labelName {
+		case "sourceMAC":
+			dynamicLabels[labelName] = packetData.sourceMAC
+		case "destinationMAC":
+			dynamicLabels[labelName] = packetData.destinationMAC
+		case "sourceIP":
+			dynamicLabels[labelName] = packetData.sourceIP
+		case "destinationIP":
+			dynamicLabels[labelName] = packetData.destinationIP
+		case "sourcePort":
+			dynamicLabels[labelName] = packetData.sourcePort
+		case "destinationPort":
+			dynamicLabels[labelName] = packetData.destinationPort
+		case "layer4Protocol":
+			dynamicLabels[labelName] = packetData.layer4Protocol
+		case "tcpFlag":
+			dynamicLabels[labelName] = packetData.tcpFlag
+		case "tlsVersion":
+			dynamicLabels[labelName] = packetData.tlsVersion
+		}
+	}
+
 	if localMAC == packetData.sourceMAC {
-		PrometheusMetricOutgoing.WithLabelValues(packetData.sourceMAC, packetData.destinationMAC, packetData.sourceIP, packetData.destinationIP, packetData.sourcePort, packetData.destinationPort, packetData.layer4Protocol, packetData.tcpFlag, packetData.tlsVersion).Inc()
+		PrometheusMetricOutgoing.With(dynamicLabels).Inc()
 	} else if localMAC == packetData.destinationMAC {
-		PrometheusMetricIncoming.WithLabelValues(packetData.sourceMAC, packetData.destinationMAC, packetData.sourceIP, packetData.destinationIP, packetData.sourcePort, packetData.destinationPort, packetData.layer4Protocol, packetData.tcpFlag, packetData.tlsVersion).Inc()
+		PrometheusMetricIncoming.With(dynamicLabels).Inc()
 	} else {
-		PrometheusMetricGeneric.WithLabelValues(packetData.sourceMAC, packetData.destinationMAC, packetData.sourceIP, packetData.destinationIP, packetData.sourcePort, packetData.destinationPort, packetData.layer4Protocol, packetData.tcpFlag, packetData.tlsVersion).Inc()
+		PrometheusMetricGeneric.With(dynamicLabels).Inc()
 	}
 }
 
@@ -88,10 +125,10 @@ func NewTTLMap(config Config) (m *TTLMap) {
 				totalItemsCount++
 				if now.Unix()-v.lastAccess > config.PROMETHEUS_OUTPUT.PROMETHEUS_EXPIRE_AFTER {
 					totalItemsExpired++
-					labels := makePacketDataFromKey(k)
-					PrometheusMetricGeneric.DeleteLabelValues(labels[0], labels[1], labels[2], labels[3], labels[4], labels[5], labels[6], labels[7], labels[8])
-					PrometheusMetricIncoming.DeleteLabelValues(labels[0], labels[1], labels[2], labels[3], labels[4], labels[5], labels[6], labels[7], labels[8])
-					PrometheusMetricOutgoing.DeleteLabelValues(labels[0], labels[1], labels[2], labels[3], labels[4], labels[5], labels[6], labels[7], labels[8])
+					labelsToDelete := makePacketDataFromKey(k)
+					PrometheusMetricGeneric.DeleteLabelValues(labelsToDelete...)
+					PrometheusMetricIncoming.DeleteLabelValues(labelsToDelete...)
+					PrometheusMetricOutgoing.DeleteLabelValues(labelsToDelete...)
 					delete(m.m, k)
 				}
 			}
@@ -130,18 +167,45 @@ func (m *TTLMap) TTLMapGet(k string) {
 }
 
 func makeKeyFromPacketData(packetData PacketData) string {
-	result := packetData.sourceMAC
-	result += "," + packetData.destinationMAC
-	result += "," + packetData.sourceIP
-	result += "," + packetData.destinationIP
-	result += "," + packetData.sourcePort
-	result += "," + packetData.destinationPort
-	result += "," + packetData.layer4Protocol
-	result += "," + packetData.tcpFlag
-	result += "," + packetData.tlsVersion
-	return result
+	var result strings.Builder
+
+	// Same deal as above. Gross switch statement but has type safety and
+	// a lot better performance than reflect
+	for _, label := range labels {
+		switch label {
+		case "sourceMAC":
+			result.WriteString(packetData.sourceMAC)
+		case "destinationMAC":
+			result.WriteString(packetData.destinationMAC)
+		case "sourceIP":
+			result.WriteString(packetData.sourceIP)
+		case "destinationIP":
+			result.WriteString(packetData.destinationIP)
+		case "sourcePort":
+			result.WriteString(packetData.sourcePort)
+		case "destinationPort":
+			result.WriteString(packetData.destinationPort)
+		case "layer4Protocol":
+			result.WriteString(packetData.layer4Protocol)
+		case "tcpFlag":
+			result.WriteString(packetData.tcpFlag)
+		case "tlsVersion":
+			result.WriteString(packetData.tlsVersion)
+		}
+	}
+
+	return result.String()
 }
 
 func makePacketDataFromKey(key string) []string {
 	return strings.Split(key, ",")
+}
+
+func contains(slice []string, element string) bool {
+	for _, value := range slice {
+		if value == element {
+			return true
+		}
+	}
+	return false
 }

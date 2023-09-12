@@ -17,10 +17,11 @@ type PCAP_INPUT struct {
 }
 
 type PROMETHEUS_OUTPUT struct {
-	ENABLED                        bool  `yaml:"enabled"`
-	PROMETHEUS_EXPIRE_AFTER        int64 `yaml:"prometheus_expire_after"`
-	PROMETHEUS_EXPIRATION_INTERVAL int   `yaml:"prometheus_expiration_interval"`
-	PROMETHEUS_METRICS_PORT        int   `yaml:"prometheus_metrics_port"`
+	ENABLED                        bool     `yaml:"enabled"`
+	PROMETHEUS_EXPIRE_AFTER        int64    `yaml:"prometheus_expire_after"`
+	PROMETHEUS_EXPIRATION_INTERVAL int      `yaml:"prometheus_expiration_interval"`
+	PROMETHEUS_METRICS_PORT        int      `yaml:"prometheus_metrics_port"`
+	PROMETHEUS_EXCLUDE_FIELDS      []string `yaml:"prometheus_exclude_fields"`
 }
 
 type Config struct {
@@ -64,6 +65,7 @@ func LoadConfig() (config Config, err error) {
 	viper.SetDefault("PROMETHEUS_OUTPUT.prometheus_expire_after", 900)
 	viper.SetDefault("PROMETHEUS_OUTPUT.prometheus_expiration_interval", 60)
 	viper.SetDefault("PROMETHEUS_OUTPUT.prometheus_metrics_port", 8080)
+	viper.SetDefault("PROMETHEUS_OUTPUT.prometheus_exclude_fields", []string{})
 
 	err = viper.Unmarshal(&config)
 	return

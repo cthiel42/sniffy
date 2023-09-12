@@ -34,7 +34,8 @@ For an example of the config file, look at `config.yaml`. Detailed configuration
   - `PROMETHEUS_EXPIRATION_INTERVAL` // Specifies the interval in seconds on which the cleanup routine should run to expire stale data.
   - `PROMETHEUS_EXPIRE_AFTER` // After how many seconds of not seeing a metric be updated should that metric be expired and no longer reported. This is a critical configuration for cardinality issues. Expire more frequently if cardinality becomes an issue in the exporter.
   - `PROMETHEUS_METRICS_PORT` // Port to run the /metrics endpoint on
+  - `PROMETHEUS_EXCLUDE_FIELDS` // Array of fields to exclude in metrics to reduce cardinality. Options are: `sourceMAC`, `destinationMAC`, `sourceIP`, `destinationIP`, `sourcePort`, `destinationPort`, `layer4Protocol`, `tcpFlag`, `tlsVersion`
 
 Features to be worked on:
-- Add switches into the code to allow certain analysis and statistics to be or not be reported. For Prometheus metrics this would allow leaving some labels out to help with cardinality.
-- Create config logic to decide what input and output gets selected. Ideally like to have logging output for use with tools like ElasticSearch or Splunk.
+- Influx Output
+- Create config logic to decide what input and output gets selected. Ideally like to have logging output to send both application logs and pcap logs to something like Elastic Search, Loki, or Splunk
