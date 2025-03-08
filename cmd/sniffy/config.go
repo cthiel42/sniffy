@@ -1,4 +1,4 @@
-package main
+package sniffy
 
 import (
 	"flag"
@@ -29,7 +29,7 @@ type Config struct {
 	PROMETHEUS_OUTPUT PROMETHEUS_OUTPUT `yaml:"prometheus_output"`
 }
 
-func main() {
+func Start() {
 	log.Println("Loading Config")
 
 	config, err := LoadConfig()
@@ -69,4 +69,8 @@ func LoadConfig() (config Config, err error) {
 
 	err = viper.Unmarshal(&config)
 	return
+}
+
+func init() {
+	flag.Parse()
 }
